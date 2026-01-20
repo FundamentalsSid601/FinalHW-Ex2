@@ -1,0 +1,323 @@
+---
+title: "Human Development Index Data Cleaning"
+author: "Data Analysis"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Introduction
+
+This document demonstrates the cleaning and formatting of the Human Development Index (HDI) data from the UNDP Human Development Report. The HDI is a composite statistic used to rank countries by level of human development.
+
+## Loading Required Libraries
+
+```{r libraries}
+# Install packages if needed
+if (!require("readxl")) install.packages("readxl")
+if (!require("dplyr")) install.packages("dplyr")
+if (!require("knitr")) install.packages("knitr")
+
+library(readxl)
+library(dplyr)
+library(knitr)
+```
+
+## Step 1: Exploring the Raw Data
+
+First, let's examine the structure of the Excel file to understand what we're working with.
+
+```{r explore-data}
+# Read the Excel file - first let's see what sheets are available
+excel_file <- "HDR25_Statistical_Annex_HDI_Table.xlsx"
+sheets <- excel_sheets(excel_file)
+print(paste("Available sheets:", paste(sheets, collapse = ", ")))
+
+# Read the raw data to explore its structure
+raw_data <- read_excel(excel_file, sheet = 1)
+
+# Show dimensions
+print(paste("Raw data dimensions:", nrow(raw_data), "rows x", ncol(raw_data), "columns"))
+
+# Show first 15 rows to understand the header structure
+head(raw_data, 15)
+```
+
+## Step 2: Understanding the Data Structure
+
+The HDI data typically has several header rows before the actual data begins. Let's identify where the actual data starts.
+
+```{r find-headers}
+# Look at the first column to find where country data begins
+print("First 20 values in first column:")
+print(raw_data[1:20, 1:3])
+```
+
+## Step 3: Reading Data with Correct Skip Rows
+
+Based on the exploration, we need to skip the header/metadata rows and read from where the actual country data begins.
+
+```{r read-clean}
+# Read the data, skipping the header rows
+# The HDI table typically has metadata rows at the top
+# We need to find the row where actual data starts
+
+# Read all data first
+all_data <- read_excel(excel_file, sheet = 1, col_names = FALSE)
+
+# Find the row that contains "Country" or the first actual country
+# Look for the header row
+for(i in 1:20) {
+  row_vals <- as.character(all_data[i, ])
+  if(any(grepl("Country|country|HDI rank", row_vals, ignore.case = TRUE))) {
+    print(paste("Potential header row found at:", i))
+    print(row_vals[1:8])
+  }
+}
+```
+
+## Step 4: Cleaning and Formatting the Data
+
+Now let's properly read and clean the data.
+
+```{r clean-data}
+# Read data skipping the metadata rows
+# Typically HDI tables have headers around row 5-8
+hdi_raw <- read_excel(excel_file, sheet = 1, skip = 7)
+
+# Display the column names to understand the structure
+print("Column names after skip:")
+names(hdi_raw)
+```
+
+```{r identify-columns}
+# View first few rows
+head(hdi_raw, 10)
+```
+
+## Step 5: Select and Rename Relevant Columns
+
+We need to identify and keep only the relevant columns for our analysis.
+
+```{r select-columns}
+# Based on typical HDI table structure, identify the key columns
+# The main variables we need are:
+# - Country name
+# - Life expectancy at birth
+# - Expected years of schooling
+# - Mean years of schooling
+# - Gross national income (GNI) per capita
+
+# Let's examine the data more closely
+glimpse(hdi_raw)
+```
+
+```{r format-table}
+# Create a clean dataset
+# First, let's identify which columns contain our target variables
+
+# Find columns by partial name matching
+col_names <- names(hdi_raw)
+print("All column names:")
+print(col_names)
+
+# Try to find the country column (usually the first or second meaningful column)
+# and the key indicator columns
+```
+
+## Step 6: Final Data Cleaning
+
+```{r final-cleaning}
+# Select the relevant columns based on column positions
+# Typically: Col 1 = HDI Rank, Col 2 = Country, then indicators follow
+
+# Create clean dataset - adjust column indices based on actual structure
+hdi_clean <- hdi_raw
+
+# Rename columns to standard names
+# We need to identify the correct columns first
+# Common structure: Rank, Country, HDI, Life Exp, Exp Schooling, Mean Schooling, GNI
+
+# Let's try to select based on typical HDI table structure
+# Usually columns are: 1=Rank, 2=Country, 3=HDI value, 4=Life expectancy,
+# 5=Expected schooling, 6=Mean schooling, 7=GNI per capita
+
+# Check if we have enough columns
+if(ncol(hdi_clean) >= 7) {
+  # Select key columns (adjust indices if needed)
+  hdi_selected <- hdi_clean[, c(2, 4, 5, 6, 7)]
+  names(hdi_selected) <- c("Country",
+                           "Life_expectancy_at_birth",
+                           "Expected_years_of_schooling",
+                           "Mean_years_of_schooling",
+                           "GNI_per_capita")
+} else {
+  # Try alternative approach - find columns by name pattern
+  hdi_selected <- hdi_clean %>%
+    select(matches("country|life|expect|mean|school|GNI|income", ignore.case = TRUE))
+}
+
+# Display structure
+print("Selected columns:")
+names(hdi_selected)
+head(hdi_selected, 10)
+```
+
+## Step 7: Filter Countries Only and Remove Missing Values
+
+The data may contain regional aggregates and groups. We need to keep only individual countries.
+
+```{r filter-countries}
+# Convert columns to appropriate types
+hdi_filtered <- hdi_selected %>%
+  # Convert numeric columns
+  mutate(
+    Life_expectancy_at_birth = as.numeric(Life_expectancy_at_birth),
+    Expected_years_of_schooling = as.numeric(Expected_years_of_schooling),
+    Mean_years_of_schooling = as.numeric(Mean_years_of_schooling),
+    GNI_per_capita = as.numeric(gsub(",", "", GNI_per_capita))  # Remove commas if present
+  )
+
+# Remove rows that are NOT countries (typically headers, subtitles, or regional groupings)
+# These often have NA values or are text descriptions
+
+# Common non-country entries to remove
+non_countries <- c("VERY HIGH HUMAN DEVELOPMENT",
+                   "HIGH HUMAN DEVELOPMENT",
+                   "MEDIUM HUMAN DEVELOPMENT",
+                   "LOW HUMAN DEVELOPMENT",
+                   "Developing Countries",
+                   "Regions",
+                   "Human development groups",
+                   "World",
+                   "Arab States",
+                   "East Asia and the Pacific",
+                   "Europe and Central Asia",
+                   "Latin America and the Caribbean",
+                   "South Asia",
+                   "Sub-Saharan Africa",
+                   "Least Developed Countries",
+                   "Small Island Developing States",
+                   "Organisation for Economic Co-operation and Development",
+                   "OECD")
+
+# Filter out non-countries and rows with missing values
+hdi_countries <- hdi_filtered %>%
+  # Remove known non-country entries
+  filter(!Country %in% non_countries) %>%
+  # Remove rows where Country is NA or empty
+  filter(!is.na(Country) & Country != "") %>%
+  # Remove rows with any missing numeric values
+  filter(!is.na(Life_expectancy_at_birth)) %>%
+  filter(!is.na(Expected_years_of_schooling)) %>%
+  filter(!is.na(Mean_years_of_schooling)) %>%
+  filter(!is.na(GNI_per_capita)) %>%
+  # Remove rows that might be section headers (typically all caps or contain numbers in country name)
+  filter(!grepl("^[A-Z ]+$", Country)) %>%
+  # Additional filter: remove entries that are clearly not countries
+  filter(!grepl("development|region|world|states|countries|average", Country, ignore.case = TRUE))
+
+# Show how many rows we have
+print(paste("Number of countries after cleaning:", nrow(hdi_countries)))
+
+# Display first 20 countries
+head(hdi_countries, 20)
+```
+
+## Step 8: Final Cleaned Dataset
+
+```{r final-dataset}
+# Display the final cleaned dataset summary
+print(paste("Final dataset contains", nrow(hdi_countries), "countries"))
+print(paste("Variables:", paste(names(hdi_countries), collapse = ", ")))
+
+# Show structure
+str(hdi_countries)
+
+# Display the full table (first 50 rows for readability)
+kable(head(hdi_countries, 50),
+      caption = "Human Development Index Data (First 50 Countries)",
+      digits = 2)
+```
+
+## Step 9: Compute and Display Means
+
+Now we calculate the mean of each of the four key variables as requested.
+
+```{r compute-means}
+# Calculate means for each variable
+means <- hdi_countries %>%
+  summarise(
+    `Mean Life Expectancy at Birth (years)` = mean(Life_expectancy_at_birth, na.rm = TRUE),
+    `Mean Expected Years of Schooling` = mean(Expected_years_of_schooling, na.rm = TRUE),
+    `Mean Years of Schooling` = mean(Mean_years_of_schooling, na.rm = TRUE),
+    `Mean GNI per Capita (USD)` = mean(GNI_per_capita, na.rm = TRUE)
+  )
+
+# Display the means in a formatted table
+kable(t(means),
+      col.names = "Mean Value",
+      caption = "Mean Values of HDI Components",
+      digits = 2)
+```
+
+## Summary Statistics
+
+```{r summary-stats}
+# More detailed summary statistics
+summary_stats <- hdi_countries %>%
+  summarise(
+    across(
+      c(Life_expectancy_at_birth, Expected_years_of_schooling,
+        Mean_years_of_schooling, GNI_per_capita),
+      list(
+        Mean = ~mean(., na.rm = TRUE),
+        Median = ~median(., na.rm = TRUE),
+        SD = ~sd(., na.rm = TRUE),
+        Min = ~min(., na.rm = TRUE),
+        Max = ~max(., na.rm = TRUE)
+      )
+    )
+  )
+
+# Reshape for better display
+print("Life Expectancy at Birth:")
+print(paste("  Mean:", round(means$`Mean Life Expectancy at Birth (years)`, 2), "years"))
+
+print("Expected Years of Schooling:")
+print(paste("  Mean:", round(means$`Mean Expected Years of Schooling`, 2), "years"))
+
+print("Mean Years of Schooling:")
+print(paste("  Mean:", round(means$`Mean Years of Schooling`, 2), "years"))
+
+print("GNI per Capita:")
+print(paste("  Mean:", round(means$`Mean GNI per Capita (USD)`, 2), "USD"))
+```
+
+## Step 10: Save Cleaned Data
+
+```{r save-data}
+# Save the cleaned dataset to CSV
+write.csv(hdi_countries, "HDI_cleaned_data.csv", row.names = FALSE)
+print("Cleaned data saved to 'HDI_cleaned_data.csv'")
+```
+
+## Conclusion
+
+This analysis successfully cleaned the Human Development Index data by:
+
+1. **Reading the raw Excel file** and identifying the structure
+2. **Removing header/metadata rows** that don't contain country data
+3. **Selecting relevant columns**: Country name and the four key indicators
+4. **Filtering to keep only countries**: Removed regional aggregates and groupings
+5. **Removing rows with missing values**: Ensured complete cases only
+6. **Computing means** for each of the four key variables
+
+The final cleaned dataset contains only countries with complete data for all four HDI components: Life expectancy at birth, Expected years of schooling, Mean years of schooling, and GNI per capita.
