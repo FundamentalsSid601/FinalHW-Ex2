@@ -3,95 +3,133 @@ title: "Human Development Index Data Cleaning"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
-```
-
 ## Loading Libraries
 
 ```{r}
+# rio: for importing data from various formats including URLs
 library(rio)
+# dplyr: for data manipulation (filter, mutate, summarise)
 library(dplyr)
+# knitr: for creating formatted tables
 library(knitr)
 ```
 
 ## Import Data from GitHub
 
 ```{r}
+# Store the URL to the Excel file hosted on GitHub
 link = "https://github.com/FundamentalsSid601/FinalHW-Ex2/raw/main/HDR25_Statistical_Annex_HDI_Table.xlsx"
 ```
 
 ## Explore Raw Data
 
 ```{r}
+# Import the Excel file directly from the GitHub URL
 raw_data <- rio::import(link)
+# Display first 15 rows to understand the data structure
 head(raw_data, 15)
 ```
 
 ## Read Data with Correct Skip
 
 ```{r}
+# Import again, skipping the first 7 rows (metadata/headers)
+# This starts reading from where actual country data begins
 hdi_raw <- rio::import(link, skip = 7)
+
+# Display first 10 rows to verify correct data alignment
 head(hdi_raw, 10)
 ```
 
 ## Select and Rename Columns
 
 ```{r}
+# Select only the columns we need:
+# Column 2: Country name
+# Column 5: Life expectancy at birth
+# Column 7: Expected years of schooling
+# Column 9: Mean years of schooling
+# Column 11: GNI per capita
 hdi_selected <- hdi_raw[, c(2, 5, 7, 9, 11)]
+
+# Rename columns to meaningful variable names
 names(hdi_selected) <- c("Country",
                          "Life_expectancy_at_birth",
                          "Expected_years_of_schooling",
                          "Mean_years_of_schooling",
                          "GNI_per_capita")
+
+# Display first 10 rows to verify selection
 head(hdi_selected, 10)
 ```
 
 ## Filter Countries and Remove Missing Values
 
 ```{r}
+# Convert all numeric columns to proper numeric type
 hdi_filtered <- hdi_selected %>%
   mutate(
+    # Convert life expectancy to numeric
     Life_expectancy_at_birth = as.numeric(Life_expectancy_at_birth),
+    # Convert expected schooling to numeric
     Expected_years_of_schooling = as.numeric(Expected_years_of_schooling),
+    # Convert mean schooling to numeric
     Mean_years_of_schooling = as.numeric(Mean_years_of_schooling),
+    # Convert GNI to numeric, removing any commas first
     GNI_per_capita = as.numeric(gsub(",", "", GNI_per_capita))
   )
 
+# Filter to keep only valid country rows
 hdi_countries <- hdi_filtered %>%
+  # Remove rows where Country is NA or empty
   filter(!is.na(Country) & Country != "") %>%
+  # Remove rows with missing life expectancy
   filter(!is.na(Life_expectancy_at_birth)) %>%
+  # Remove rows with missing expected schooling
   filter(!is.na(Expected_years_of_schooling)) %>%
+  # Remove rows with missing mean schooling
   filter(!is.na(Mean_years_of_schooling)) %>%
+  # Remove rows with missing GNI
   filter(!is.na(GNI_per_capita)) %>%
+  # Remove category headers (all uppercase text like "VERY HIGH HUMAN DEVELOPMENT")
   filter(!grepl("^[A-Z ]+$", Country)) %>%
+  # Remove regional aggregates and non-country entries
   filter(!grepl("development|region|world|states|countries|average", Country, ignore.case = TRUE))
 
+# Print the number of countries remaining after filtering
 print(paste("Number of countries:", nrow(hdi_countries)))
 ```
 
 ## Final Cleaned Dataset
 
 ```{r}
+# Display first 50 countries in a formatted table
 kable(head(hdi_countries, 50), digits = 2)
 ```
 
 ## Compute Means
 
 ```{r}
+# Calculate the mean of each numeric variable
 means <- hdi_countries %>%
   summarise(
+    # Mean of life expectancy across all countries
     `Life expectancy at birth` = mean(Life_expectancy_at_birth),
+    # Mean of expected years of schooling
     `Expected years of schooling` = mean(Expected_years_of_schooling),
+    # Mean of mean years of schooling
     `Mean years of schooling` = mean(Mean_years_of_schooling),
+    # Mean of GNI per capita
     `GNI per capita` = mean(GNI_per_capita)
   )
 
+# Display means in a transposed table format
 kable(t(means), col.names = "Mean Value", digits = 2)
 ```
 
 ## Save Cleaned Data
 
 ```{r}
+# Export the cleaned dataset to a CSV file
 write.csv(hdi_countries, "HDI_cleaned_data.csv", row.names = FALSE)
 ```

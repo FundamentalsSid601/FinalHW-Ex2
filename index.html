@@ -355,17 +355,46 @@ display: none;
 
 <div id="loading-libraries" class="section level2">
 <h2>Loading Libraries</h2>
-<pre class="r"><code>library(rio)
-library(dplyr)
+<pre class="r"><code># rio: for importing data from various formats including URLs
+library(rio)
+# dplyr: for data manipulation (filter, mutate, summarise)
+library(dplyr)</code></pre>
+<pre><code>## 
+## Attaching package: &#39;dplyr&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:stats&#39;:
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<pre class="r"><code># knitr: for creating formatted tables
 library(knitr)</code></pre>
 </div>
 <div id="import-data-from-github" class="section level2">
 <h2>Import Data from GitHub</h2>
-<pre class="r"><code>link = &quot;https://github.com/FundamentalsSid601/FinalHW-Ex2/raw/main/HDR25_Statistical_Annex_HDI_Table.xlsx&quot;</code></pre>
+<pre class="r"><code># Store the URL to the Excel file hosted on GitHub
+link = &quot;https://github.com/FundamentalsSid601/FinalHW-Ex2/raw/main/HDR25_Statistical_Annex_HDI_Table.xlsx&quot;</code></pre>
 </div>
 <div id="explore-raw-data" class="section level2">
 <h2>Explore Raw Data</h2>
-<pre class="r"><code>raw_data &lt;- rio::import(link)
+<pre class="r"><code># Import the Excel file directly from the GitHub URL
+raw_data &lt;- rio::import(link)</code></pre>
+<pre><code>## New names:
+## • `` -&gt; `...1`
+## • `` -&gt; `...3`
+## • `` -&gt; `...4`
+## • `` -&gt; `...5`
+## • `` -&gt; `...6`
+## • `` -&gt; `...7`
+## • `` -&gt; `...8`
+## • `` -&gt; `...9`
+## • `` -&gt; `...10`
+## • `` -&gt; `...11`
+## • `` -&gt; `...12`
+## • `` -&gt; `...13`
+## • `` -&gt; `...14`
+## • `` -&gt; `...15`</code></pre>
+<pre class="r"><code># Display first 15 rows to understand the data structure
 head(raw_data, 15)</code></pre>
 <pre><code>##        ...1 Table 1. Human Development Index and its components
 ## 1      &lt;NA&gt;                                                &lt;NA&gt;
@@ -450,7 +479,25 @@ head(raw_data, 15)</code></pre>
 </div>
 <div id="read-data-with-correct-skip" class="section level2">
 <h2>Read Data with Correct Skip</h2>
-<pre class="r"><code>hdi_raw &lt;- rio::import(link, skip = 7)
+<pre class="r"><code># Import again, skipping the first 7 rows (metadata/headers)
+# This starts reading from where actual country data begins
+hdi_raw &lt;- rio::import(link, skip = 7)</code></pre>
+<pre><code>## New names:
+## • `` -&gt; `...1`
+## • `` -&gt; `...3`
+## • `` -&gt; `...4`
+## • `` -&gt; `...5`
+## • `` -&gt; `...6`
+## • `` -&gt; `...7`
+## • `` -&gt; `...8`
+## • `` -&gt; `...9`
+## • `` -&gt; `...10`
+## • `` -&gt; `...11`
+## • `` -&gt; `...12`
+## • `` -&gt; `...13`
+## • `` -&gt; `...14`
+## • `` -&gt; `...15`</code></pre>
+<pre class="r"><code># Display first 10 rows to verify correct data alignment
 head(hdi_raw, 10)</code></pre>
 <pre><code>##    ...1 Very high human development                ...3 ...4   ...5 ...6
 ## 1     1                     Iceland 0.97199999999999998   NA 82.691 &lt;NA&gt;
@@ -488,12 +535,22 @@ head(hdi_raw, 10)</code></pre>
 </div>
 <div id="select-and-rename-columns" class="section level2">
 <h2>Select and Rename Columns</h2>
-<pre class="r"><code>hdi_selected &lt;- hdi_raw[, c(2, 5, 7, 9, 11)]
+<pre class="r"><code># Select only the columns we need:
+# Column 2: Country name
+# Column 5: Life expectancy at birth
+# Column 7: Expected years of schooling
+# Column 9: Mean years of schooling
+# Column 11: GNI per capita
+hdi_selected &lt;- hdi_raw[, c(2, 5, 7, 9, 11)]
+
+# Rename columns to meaningful variable names
 names(hdi_selected) &lt;- c(&quot;Country&quot;,
                          &quot;Life_expectancy_at_birth&quot;,
                          &quot;Expected_years_of_schooling&quot;,
                          &quot;Mean_years_of_schooling&quot;,
                          &quot;GNI_per_capita&quot;)
+
+# Display first 10 rows to verify selection
 head(hdi_selected, 10)</code></pre>
 <pre><code>##                   Country Life_expectancy_at_birth Expected_years_of_schooling
 ## 1                 Iceland                   82.691                    18.85059
@@ -520,29 +577,49 @@ head(hdi_selected, 10)</code></pre>
 </div>
 <div id="filter-countries-and-remove-missing-values" class="section level2">
 <h2>Filter Countries and Remove Missing Values</h2>
-<pre class="r"><code>hdi_filtered &lt;- hdi_selected %&gt;%
+<pre class="r"><code># Convert all numeric columns to proper numeric type
+hdi_filtered &lt;- hdi_selected %&gt;%
   mutate(
+    # Convert life expectancy to numeric
     Life_expectancy_at_birth = as.numeric(Life_expectancy_at_birth),
+    # Convert expected schooling to numeric
     Expected_years_of_schooling = as.numeric(Expected_years_of_schooling),
+    # Convert mean schooling to numeric
     Mean_years_of_schooling = as.numeric(Mean_years_of_schooling),
+    # Convert GNI to numeric, removing any commas first
     GNI_per_capita = as.numeric(gsub(&quot;,&quot;, &quot;&quot;, GNI_per_capita))
-  )
-
+  )</code></pre>
+<pre><code>## Warning: There were 2 warnings in `mutate()`.
+## The first warning was:
+## ℹ In argument: `Mean_years_of_schooling = as.numeric(Mean_years_of_schooling)`.
+## Caused by warning:
+## ! NAs introduced by coercion
+## ℹ Run `dplyr::last_dplyr_warnings()` to see the 1 remaining warning.</code></pre>
+<pre class="r"><code># Filter to keep only valid country rows
 hdi_countries &lt;- hdi_filtered %&gt;%
+  # Remove rows where Country is NA or empty
   filter(!is.na(Country) &amp; Country != &quot;&quot;) %&gt;%
+  # Remove rows with missing life expectancy
   filter(!is.na(Life_expectancy_at_birth)) %&gt;%
+  # Remove rows with missing expected schooling
   filter(!is.na(Expected_years_of_schooling)) %&gt;%
+  # Remove rows with missing mean schooling
   filter(!is.na(Mean_years_of_schooling)) %&gt;%
+  # Remove rows with missing GNI
   filter(!is.na(GNI_per_capita)) %&gt;%
+  # Remove category headers (all uppercase text like &quot;VERY HIGH HUMAN DEVELOPMENT&quot;)
   filter(!grepl(&quot;^[A-Z ]+$&quot;, Country)) %&gt;%
+  # Remove regional aggregates and non-country entries
   filter(!grepl(&quot;development|region|world|states|countries|average&quot;, Country, ignore.case = TRUE))
 
+# Print the number of countries remaining after filtering
 print(paste(&quot;Number of countries:&quot;, nrow(hdi_countries)))</code></pre>
 <pre><code>## [1] &quot;Number of countries: 196&quot;</code></pre>
 </div>
 <div id="final-cleaned-dataset" class="section level2">
 <h2>Final Cleaned Dataset</h2>
-<pre class="r"><code>kable(head(hdi_countries, 50), digits = 2)</code></pre>
+<pre class="r"><code># Display first 50 countries in a formatted table
+kable(head(hdi_countries, 50), digits = 2)</code></pre>
 <table>
 <colgroup>
 <col width="20%" />
@@ -916,14 +993,20 @@ print(paste(&quot;Number of countries:&quot;, nrow(hdi_countries)))</code></pre>
 </div>
 <div id="compute-means" class="section level2">
 <h2>Compute Means</h2>
-<pre class="r"><code>means &lt;- hdi_countries %&gt;%
+<pre class="r"><code># Calculate the mean of each numeric variable
+means &lt;- hdi_countries %&gt;%
   summarise(
+    # Mean of life expectancy across all countries
     `Life expectancy at birth` = mean(Life_expectancy_at_birth),
+    # Mean of expected years of schooling
     `Expected years of schooling` = mean(Expected_years_of_schooling),
+    # Mean of mean years of schooling
     `Mean years of schooling` = mean(Mean_years_of_schooling),
+    # Mean of GNI per capita
     `GNI per capita` = mean(GNI_per_capita)
   )
 
+# Display means in a transposed table format
 kable(t(means), col.names = &quot;Mean Value&quot;, digits = 2)</code></pre>
 <table>
 <thead>
@@ -954,7 +1037,8 @@ kable(t(means), col.names = &quot;Mean Value&quot;, digits = 2)</code></pre>
 </div>
 <div id="save-cleaned-data" class="section level2">
 <h2>Save Cleaned Data</h2>
-<pre class="r"><code>write.csv(hdi_countries, &quot;HDI_cleaned_data.csv&quot;, row.names = FALSE)</code></pre>
+<pre class="r"><code># Export the cleaned dataset to a CSV file
+write.csv(hdi_countries, &quot;HDI_cleaned_data.csv&quot;, row.names = FALSE)</code></pre>
 </div>
 
 
